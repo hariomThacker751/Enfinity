@@ -1,8 +1,8 @@
 __pycache__/
 *.pyc
 checkpoints/
-train_stats/
 *.pt
 !segmentation_head_best.pt
 *.pth
 .DS_Store
+problem_explanation_76o7hl6ki03.pdf
