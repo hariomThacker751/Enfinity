@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+checkpoints/
+predictions/
+train_stats/
+*.pt
+!segmentation_head_best.pt
+*.pth
+.DS_Store
