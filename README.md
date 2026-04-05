@@ -1,59 +1,73 @@
-# DINOv2 Offroad Semantic Segmentation
+# DINOv2 Off-Road Semantic Segmentation
 
-This repository contains heavily optimized semantic segmentation code designed to detect off-road terrain classes using a frozen Meta **DINOv2-Large (`vitl14_reg`)** backbone combined with a custom Progressive Semantic Decoder head.
+This repository contains a semantic segmentation pipeline designed to detect off-road terrain classes using a frozen Meta **DINOv2-Large (`vitl14_reg`)** backbone combined with a custom Progressive Semantic Decoder head.
 
-## 🚀 Key Features
-- **Zero-Shot Feature Extraction**: Leverages frozen DINOv2-Large to prevent overfitting on synthetic off-road datasets.
-- **Global Confusion Matrix IoU**: Evaluates exact pixel matches across the entire dataset rather than skewed image-wise macro-averaging.
-- **Weighted Focal Loss**: Forcefully targets heavily imbalanced/rare rare classes (Logs, Flowers, Rocks) using pre-computed frequency smoothing techniques.
-- **DataParallel Kaggle Patched**: Built-in logic strips `DataParallel` and Full-Model wrappers natively, allowing direct download and testing of Kaggle checkpoints without manual tensor surgery.
+## Key Features
+
+- **Zero-Shot Feature Extraction**: Leverages a frozen DINOv2-Large backbone to prevent overfitting on synthetic off-road datasets.
+- **Global Confusion Matrix IoU**: Evaluates exact pixel matches across the entire dataset rather than image-wise macro-averaging, producing more reliable metrics.
+- **Weighted Focal Loss**: Addresses class imbalance by targeting rare classes (Logs, Flowers, Rocks) using pre-computed frequency smoothing.
+- **DataParallel Compatibility**: Built-in logic strips `DataParallel` and full-model wrappers automatically, enabling direct use of Kaggle checkpoints without manual weight surgery.
 
 ---
 
-## 💻 1. Environment & Dependency Requirements
-You must have Python 3.10+ and a CUDA-capable GPU. 
+## 1. Environment and Dependency Requirements
 
-Install the required packages using pip:
+**Prerequisites:** Python 3.10 or later and a CUDA-capable GPU.
+
+Install the required packages:
+
 ```bash
 pip install torch torchvision
 pip install opencv-python matplotlib tqdm Pillow numpy
 ```
-*(Optional but recommended): Install `xformers` for faster memory-efficient attention in DINOv2.*
 
-## 🏗️ 2. How to Reproduce Results & Train the Model
+> **Optional (recommended):** Install `xformers` for memory-efficient attention in DINOv2.
+
+---
+
+## 2. Reproducing Results and Training the Model
+
 1. Place the `Offroad_Segmentation_Training_Dataset` directory one level above the script directory.
-2. Ensure you have at least 16GB of GPU VRAM (or run this via the provided Kaggle automation `.ipynb` script `generate_kaggle_nb.py` which targets dual-T4 GPUs).
-3. Execute the training script:
+2. Ensure at least 16 GB of GPU VRAM is available. Alternatively, use the provided Kaggle notebook (`generate_kaggle_nb.py`), which targets dual T4 GPUs.
+3. Run the training script:
+
 ```bash
 python train_segmentation.py
 ```
-**Expected Output:** 
-The code runs 45 epochs by default. During training, it heavily utilizes native PyTorch tensors for augmentations to prevent Windows RAM leaks from PIL array interfaces. It will log IoU and Loss metrics per batch and automatically save `segmentation_head_best.pt`. 
 
-Because only the small MLP classification head is trained (while the billion-parameter backbone is frozen), training finishes in just a few hours rather than days.
+**Expected behavior:**
+Training runs for 45 epochs by default. Augmentations are performed using native PyTorch tensors to avoid memory issues associated with PIL array interfaces on Windows. IoU and loss metrics are logged per batch, and the best checkpoint is saved automatically as `segmentation_head_best.pt`.
 
-## 🧪 3. Step-by-Step Instructions to Run Testing
-Testing is engineered extremely strictly to simulate challenge bounds.
+Since only the lightweight MLP classification head is trained while the large backbone remains frozen, training typically completes within a few hours.
 
-1. Verify your target weights file (e.g. `segmentation_head_best.pt`) is sitting in the root folder.
-2. Run the test script. Note that the script automatically targets the default competition folder (`../Offroad_Segmentation_testImages`) so you don't even need to pass variables:
+---
+
+## 3. Running Inference and Testing
+
+1. Place the model weights file (e.g., `segmentation_head_best.pt`) in the root directory.
+2. Run the test script. By default, it reads from `../Offroad_Segmentation_testImages`:
+
 ```bash
 python test_segmentation.py
 ```
 
-**Custom Testing:** 
-If your valid images are somewhere else or you want to test a downloaded Kaggle dict (like `epoch_25_valiou_0.5489.pt`), simply pass the arguments:
+**Custom paths:**
+To use a different checkpoint or image directory, pass the relevant arguments:
+
 ```bash
-python test_segmentation.py --model_path checkpoints/epoch_25_valiou_0.5489.pt --data_dir /path/to/images 
+python test_segmentation.py --model_path checkpoints/epoch_25_valiou_0.5489.pt --data_dir /path/to/images
 ```
 
-## 📊 4. Expected Outputs & Interpretation
-When you run `test_segmentation.py`, expect the progress bar to parse all images and generate a completely populated `predictions/` folder.
+---
 
-Inside `predictions/`, you will find:
-*   `masks/`: Raw 8-bit integer pngs representing class IDs from 0 to 9.
-*   `masks_color/`: Vibrant, fully colorized masks mapped perfectly to the test visuals.
-*   `comparisons/`: 5 high-resolution matrices putting the Input Image, Ground Truth Object, and Prediction side-by-side for human diagnosis.
-*   `evaluation_metrics.txt` / `per_class_metrics.png`:
-    *   *Interpretation*: **Mean IoU** represents the mathematically sound intersection of all properly clustered class-pixels across the entire spatial range. 
-    *   **Note**: The custom testing script avoids standard batch macro-averaging, meaning tiny hallucinated classes in empty images will no longer artificially tank the IoU into the 0.00% range.
+## 4. Expected Outputs and Interpretation
+
+Running `test_segmentation.py` processes all images and populates a `predictions/` directory with the following contents:
+
+- `masks/`: Raw 8-bit PNG files where each pixel value corresponds to a class ID (0 to 9).
+- `masks_color/`: Colorized segmentation masks for visual inspection.
+- `comparisons/`: Side-by-side comparison images showing the input, ground truth, and prediction for up to 5 samples.
+- `evaluation_metrics.txt` and `per_class_metrics.png`: Quantitative results.
+  - **Mean IoU** is computed globally across all pixels in the dataset, avoiding the distortion caused by image-wise macro-averaging.
+  - The evaluation approach ensures that rare or absent classes in individual images do not artificially deflate overall IoU scores.
